@@ -4,3 +4,4 @@ numpy
 streamlit_authenticator
 scikit-learn
 googletrans
+openpyxl
