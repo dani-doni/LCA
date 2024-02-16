@@ -12,9 +12,9 @@ session_state = _SessionState()
 
 def main():
     if session_state.page == "step1":
-        st.write({session_state.page})
+        step1()
     elif session_state.page == "step2":
-        st.write({session_state.page})
+        step2()
 
 def step1():
     st.subheader('Fase 1: Carica il file excel con la lista dei materiali')
