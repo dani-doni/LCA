@@ -2,5 +2,5 @@ pandas
 streamlit
 numpy
 streamlit_authenticator
-sklearn
+scikit-learn
 googletrans
