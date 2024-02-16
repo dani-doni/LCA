@@ -1,0 +1,6 @@
+pandas
+streamlit
+numpy
+streamlit_authenticator
+sklearn
+googletrans
