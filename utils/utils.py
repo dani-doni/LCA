@@ -40,7 +40,7 @@ def CO2_dataset_upload():
     # Load the dataset from the CSV file
     dataset_path = "./utils/ITA_db_materials.csv"  # Replace with the actual path to your CSV file
     df = pd.read_csv(dataset_path, encoding='latin-1')
-    df["combined_text"] = df["Name"] + " " + df["Description"]
+    df["combined_text"] = df["Name_ITA"] + " " + df["Description_ITA"]
     return df
 
 @st.cache_resource
