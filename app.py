@@ -59,7 +59,7 @@ def step2():
     for index, material in enumerate(st.session_state['materials_table']['Input Material']):
 
         st.write(material)
-        input_text = translate_ITA_to_ENG(material)
+        input_text = material
         similars = search_similarity(all_materials, input_text)
 
         st.selectbox('Seleziona il materiale corrispondente', similars['selectbox_text'], index = None, key=index)
