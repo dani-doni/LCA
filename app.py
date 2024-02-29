@@ -1,66 +1,128 @@
 import streamlit as st
 import pandas as pd
-from utils.data_processing import find_top_matches
+from utils.utils import *
 
-# Define session state to manage page state
-class _SessionState:
-    def __init__(self):
-        self.page = "step1"
+# Set page configuration
+st.set_page_config(
+    page_title="LCA",
+    page_icon=":deciduous_tree:",
+    layout="wide",  # Set layout to wide
+)
 
-# Create a session state instance
-session_state = _SessionState()
+if 'step' not in st.session_state:
+    st.session_state.step = 1
+
+def next_step():
+    st.session_state.step += 1
 
 def main():
-    if session_state.page == "step1":
+    if st.session_state.step == 1:
         step1()
-    elif session_state.page == "step2":
+    elif st.session_state.step == 2:
         step2()
+    elif st.session_state.step == 3:
+        step3()
 
 def step1():
     st.subheader('Fase 1: Carica il file excel con la lista dei materiali')
-    st.caption('Il file deve avere nella prima colonna la lista dei materiali con la descrizione completa da computo metrico. Nella prima cella scrivete "Descrizione materiali". Scarica un esempio di file usando il bottone sottostante ') 
-    # Add button to download template file
-    #example_path = "./utils/example.xls" 
-    #st.markdown(f"[Scarica esempio file]({example_path})", unsafe_allow_html=True)
+    st.write('Il file deve avere nella prima colonna la lista dei materiali con la descrizione completa da computo metrico. La colonna deve avere come intestazione: "Descrizione materiali"') 
+    
+    # ADD BUTTON TO DOWNLOAD EXAMPLE FILE
+    file_content = download_example_file()
+    st.download_button(
+        label="Scarica file di esempio",
+        data=file_content,
+        file_name='example.xls', 
+        mime='application/vnd.ms-excel'
+    )
 
-    # Upload Excel file
+    # ADD BUTTON TO UPLOAD EXCEL FILE
     uploaded_file = st.file_uploader("Carica file excel", type=["xls", "xlsx"])
-
-    # Display DataFrame if file uploaded
     if uploaded_file is not None:
-        df = pd.read_excel(uploaded_file)
-        st.write(df)
-        st.caption('Ora che hai caricato il file controlla che tutto sia corretto e poi clicca su "Vai alla fase successiva" in fondo alla pagina ') 
-
+        #st.session_state['input_materials'] = material_list_from_uploaded_file(uploaded_file)
+        st.session_state['materials_table'] = pd.DataFrame(columns=['Input Material', 'Name', 'Name_ITA','Unit','Description', 'Description_ITA', 'Cut-Off Classification', 'CO2', 'selectbox_text'])
+        st.session_state['materials_table']['Input Material'] = material_list_from_uploaded_file(uploaded_file)
+        with st.expander("Apri e controlla lista materiali:"):
+            for material in st.session_state['materials_table']['Input Material']:
+                st.write({material})
+        st.write('Ora che hai caricato il file e controllato che tutto sia corretto, clicca su "Vai alla fase succesiva"') 
+        
         # Add button to proceed to Step 2
-        if st.button("Vai alla fase successiva"):
-            session_state.page = "step2"
+        st.button('Vai alla fase successiva', on_click=next_step)
+            
 
 def step2():
-    st.title('Fase 2: seleziona la migliore corrispondenza')
+    all_materials = CO2_dataset_upload()
 
-    # Retrieve uploaded Excel file from Step 1
-    uploaded_file = st.session_state.uploaded_file
+    # SELECT ALL THE CORRESPONDET MATERIALS FOR THE INPUTS
+    st.subheader('Fase 2: seleziona la migliore corrispondenza')
+    for index, material in enumerate(st.session_state['materials_table']['Input Material']):
 
-    # Process the uploaded file if it exists
-    if uploaded_file is not None:
-        # Load the uploaded Excel file into a DataFrame
-        df = pd.read_excel(uploaded_file)
+        st.write(material)
+        input_text = translate_ITA_to_ENG(material)
+        similars = search_similarity(all_materials, input_text)
 
-        # Iterate over each row in the DataFrame
-        for index, row in df.iterrows():
-            # Get the Italian description from the DataFrame
-            italian_description = row['Descrizione materiali']  # Adjust column name accordingly
+        st.selectbox('Seleziona il materiale corrispondente', similars['selectbox_text'], index = None, key=index)
+        if st.session_state[index] is not None:
+            materials_table_df = st.session_state['materials_table']
+            filtered_similars = similars[similars['selectbox_text'] == st.session_state[index]]
+            for column in materials_table_df.columns:
+                if column in filtered_similars.columns and column in materials_table_df.columns:
+                    materials_table_df.at[index, column] = filtered_similars.at[filtered_similars.index[0], column]
+            st.success(f'Materiale associato: {st.session_state[index]}', icon="✅")
+        st.divider()
+    
+    # Check if all session_state elements from 0 to index are not None
+    if all(st.session_state.get(str(i)) is not None for i in range(index + 1)):
+        st.session_state['materials_table'] = materials_table_df
+        st.success('Tutti i materiali sono stati associati, vai alla fase successiva.', icon="✅")
 
-            # Find top matches for the Italian description
-            top_matches = find_top_matches(italian_description)
+        # Add button to proceed to Step 2
+        st.button('Vai alla fase successiva', on_click=next_step)
 
-            # Display top matches for the current row
-            st.write(f"Top matches for row {index + 1}:")
-            for i, (match_name, match_value, match_similarity) in enumerate(top_matches, 1):
-                st.write(f"Match {i}: {match_name} (Value: {match_value}, Similarity: {match_similarity})")
-    else:
-        st.warning("Please upload an Excel file in Step 1.")
+
+def step3():
+    st.subheader('Fase 3: scarica il report degli impatti ambientali')
+    with st.expander("Apri e controlla la lista dei materiali associati:"):
+        # Display the lists side by side
+        col1, col2, col3, col4 = st.columns([0.4,0.4,0.1,0.1])
+        with col1: st.caption("Materiale")
+        with col2: st.caption("Materiale corrispondente")
+        with col3: st.caption("udm")
+        with col4: st.caption("CO2/udm")
+
+        for i in range(len(st.session_state['materials_table'])):
+            col1, col2, col3, col4 = st.columns([0.4,0.4,0.1,0.1])
+
+            with col1:
+                st.write(st.session_state['materials_table'].loc[i, "Input Material"])
+
+            with col2:
+                st.write(st.session_state['materials_table'].loc[i, "selectbox_text"])
+            
+            with col3:
+                st.write(st.session_state['materials_table'].loc[i, "Unit"])
+        
+            with col4:
+                st.write(st.session_state['materials_table'].loc[i, "CO2"])
+
+            st.divider()
+        
+    materials_table = st.session_state['materials_table']
+    excel_writer = pd.ExcelWriter('materials_table.xlsx', engine='xlsxwriter')
+    materials_table.to_excel(excel_writer, index=False)
+    materials_table.to_excel(excel_writer, index=False, sheet_name='Sheet1')
+    excel_writer.close()
+
+    # Create a download button for the output.xlsx file
+    with open('materials_table.xlsx', 'rb') as f:
+        file_data = f.read()
+    st.download_button(
+        label='Download Excel file',
+        data=file_data,
+        file_name='output.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 
 if __name__ == '__main__':
     main()
